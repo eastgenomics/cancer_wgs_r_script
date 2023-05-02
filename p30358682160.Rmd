@@ -526,6 +526,9 @@ SV_DOMAIN_1_2_3_GENE_DATA_BND_DEL_DUP_INV <- (bind_rows(SV_DOMAIN_1_2_3_GENE_DAT
                                                         SV_DOMAIN_1_2_3_GENE_DATA_DUP,
                                                         SV_DOMAIN_1_2_3_GENE_DATA_INV))
 
+#SV_DOMAIN_REPORTING <- SV_DOMAIN_1_2_3_GENE_DATA %>%
+#  select()
+
 
 wb <- createWorkbook()
 
