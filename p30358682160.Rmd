@@ -13,11 +13,11 @@ Diagnosis <- "Neuroblastoma (NB)*"
 
 #--------------------------------------
 
-INPUT_FILEPATH <- "###" # Note: PID redacted
+INPUT_FILEPATH <- "test_data/4022635230_p30358682160/4022635230_p30358682160_LP5100502-DNA_B01_LP5100500-DNA_B01.v2_47.supplementary.html" # Note: PID redacted
 
 #--------------------------------------
 
-OUTPUT_FILEPATH <- "test_output/"
+OUTPUT_FILEPATH <- "test_output/4022635230_p30358682160/script_test_results/adding_cols/"
 
 #--------------------------------------
 
@@ -88,7 +88,7 @@ print(paste(Diagnosis))
 #CancerHotspots <- read_excel("//clingen/WGS_Solid_Paediatric/Reference_data_merged_01012023.xlsx",
 #    sheet = "CancerHotspots_28032021")
 
-CancerHotspots <- read_excel("Reference_data_merged_01012023.xlsx",
+CancerHotspots <- read_excel("test_data/4022635230_p30358682160/Reference_data_merged_01012023.xlsx",
     sheet = "CancerHotspots_28032021")
 
 #--------------------------------------
@@ -96,7 +96,7 @@ CancerHotspots <- read_excel("Reference_data_merged_01012023.xlsx",
 #ReferenceGenes <- read_excel("//clingen/WGS_Solid_Paediatric/Reference_data_merged_01012023.xlsx",
 #    sheet = "CANCER_CENSUS_GENES.v1.11")
 
-ReferenceGenes <- read_excel("Reference_data_merged_01012023.xlsx",
+ReferenceGenes <- read_excel("test_data/4022635230_p30358682160/Reference_data_merged_01012023.xlsx",
     sheet = "CANCER_CENSUS_GENES.v1.11")
 
 #--------------------------------------
@@ -104,7 +104,7 @@ ReferenceGenes <- read_excel("Reference_data_merged_01012023.xlsx",
 #TMB <- read_excel("//clingen/WGS_Solid_Paediatric/Reference_data_merged_01012023.xlsx", 
 #    sheet = "TMB")
 
-TMB <- read_excel("Reference_data_merged_01012023.xlsx", 
+TMB <- read_excel("test_data/4022635230_p30358682160/Reference_data_merged_01012023.xlsx", 
     sheet = "TMB")
 
 #--------------------------------------
@@ -530,7 +530,10 @@ SV_DOMAIN_1_2_3_GENE_DATA_BND_DEL_DUP_INV <- (bind_rows(SV_DOMAIN_1_2_3_GENE_DAT
 wb <- createWorkbook()
 
 addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 1, x = SV_DOMAIN_1_2_3_GENE_DATA %>% mutate(Classification = "", "Validation Status" = ""))
+writeDataTable(wb = wb, sheet = 1, x = SV_DOMAIN_1_2_3_GENE_DATA %>% 
+                 mutate(Classification = "", "Validation Status" = "") %>%
+                 # remove CNVs from SV_ALL tab
+                 filter(!str_detect(Variant_Type, "GAIN|LOSS|LOH")))
 
 addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_GAIN", gridLines = TRUE))
 writeDataTable(wb = wb, sheet = 2, x = SV_DOMAIN_1_2_3_GENE_DATA_GAIN)
@@ -595,7 +598,7 @@ ggplot(SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDYX2, aes(x=CN, y=`Size (Mb)`, color= 
   
   ggtitle("CNV Gain") + theme(legend.title = element_blank())
 
-ggsave(filename=paste(OUTPUT_FILEPATH,P_NUMBER,"_SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDYX2.pdf"),width=8, height=7, dpi=300)
+ggsave(filename=paste0(OUTPUT_FILEPATH,P_NUMBER,"_SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDYX2.pdf"),width=8, height=7, dpi=300)
 
 ```
 
@@ -623,7 +626,7 @@ ggplot(SV_DOMAIN_1_2_3_GENE_DATA_LOSS, aes(x=CN, y=`Size (Mb)`, color= Domain, l
   
   ggtitle("CNV Loss") + theme(legend.title = element_blank())
 
-ggsave(filename=paste(OUTPUT_FILEPATH,P_NUMBER,"_SV_DOMAIN_1_2_3_GENE_DATA_LOSS.pdf"),width=8, height=7, dpi=300)
+ggsave(filename=paste0(OUTPUT_FILEPATH,P_NUMBER,"_SV_DOMAIN_1_2_3_GENE_DATA_LOSS.pdf"),width=8, height=7, dpi=300)
 
 
 
