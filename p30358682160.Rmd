@@ -1,0 +1,671 @@
+
+
+---
+output:
+  html_document: default
+---
+
+```{r UserInput, message=FALSE, warning=FALSE, include=FALSE}
+
+#--------------------------------------
+
+Diagnosis <- "Neuroblastoma (NB)*"
+
+#--------------------------------------
+
+INPUT_FILEPATH <- "test_data/4022635230_p30358682160/4022635230_p30358682160_LP5100502-DNA_B01_LP5100500-DNA_B01.v2_47.supplementary.html" # Note: PID redacted
+
+#--------------------------------------
+
+OUTPUT_FILEPATH <- "test_output/4022635230_p30358682160/script_test_results/adding_cols/"
+
+#--------------------------------------
+
+#PNUMBER IDENTIFIER
+PNUM <- strsplit(INPUT_FILEPATH,"_")[[1]]
+P_NUMBER <- paste(PNUM[3], PNUM[0:0], sep="_")
+
+#--------------------------------------
+
+```
+
+
+```{r Packages, message=FALSE, warning=FALSE, include=FALSE}
+
+#--------------------------------------
+#  PACKAGES
+#--------------------------------------
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(splitstackshape)
+library(reshape2)
+library(ggsci)
+library(gridExtra)
+library(readxl)
+library(scales)
+library(xml2)
+library(dplyr)
+library(readxl)
+library(plyr)
+library(stringr)
+library(stringi)
+library(rpivotTable)
+library(XML)
+library(xml2)
+library(DT)
+library(condformat)
+library(lemon)
+library(kableExtra)
+library(magick)
+library(pdftools)
+library(XML)
+library(openxlsx)
+#library(textreadr)
+library(ggrepel)
+```
+
+
+```{r PatientDetail, echo=FALSE}
+
+html_text <- read_html(INPUT_FILEPATH)
+print(html_text [8])
+print(html_text [9])
+print(html_text [10])
+print(paste(Diagnosis))
+
+```
+
+
+```{r ImportRefFiles_, include=FALSE}
+
+#--------------------------------------
+# IMPORT REFERENCE FILES
+#--------------------------------------
+
+#CancerHotspots <- read_excel("//clingen/WGS_Solid_Paediatric/Reference_data_merged_01012023.xlsx",
+#    sheet = "CancerHotspots_28032021")
+
+CancerHotspots <- read_excel("test_data/4022635230_p30358682160/Reference_data_merged_01012023.xlsx",
+    sheet = "CancerHotspots_28032021")
+
+#--------------------------------------
+
+#ReferenceGenes <- read_excel("//clingen/WGS_Solid_Paediatric/Reference_data_merged_01012023.xlsx",
+#    sheet = "CANCER_CENSUS_GENES.v1.11")
+
+ReferenceGenes <- read_excel("test_data/4022635230_p30358682160/Reference_data_merged_01012023.xlsx",
+    sheet = "CANCER_CENSUS_GENES.v1.11")
+
+#--------------------------------------
+
+#TMB <- read_excel("//clingen/WGS_Solid_Paediatric/Reference_data_merged_01012023.xlsx", 
+#    sheet = "TMB")
+
+TMB <- read_excel("test_data/4022635230_p30358682160/Reference_data_merged_01012023.xlsx", 
+    sheet = "TMB")
+
+#--------------------------------------
+
+```
+
+
+```{r Import HTML Tables, include=FALSE}
+
+#--------------------------------------
+# IMPORT HTML DATA INDICATING PATIENT DETAIL
+# EXTRACT DETAIL FOR EPIC TABLE 1 and 2 AND EXPORT TO XLS
+#--------------------------------------
+
+REFERRAL <- readHTMLTable(INPUT_FILEPATH, which = 1, as.data.frame(TRUE))
+TUMOUR_DETAIL <- readHTMLTable(INPUT_FILEPATH, which = 2, as.data.frame(TRUE))
+TUMOUR_SAMPLE <- readHTMLTable(INPUT_FILEPATH, which = 3, as.data.frame(TRUE))
+GERMLINE_SAMPLE <- readHTMLTable(INPUT_FILEPATH, which = 4, as.data.frame(TRUE))
+SEQUENCING <- readHTMLTable(INPUT_FILEPATH, which = 5, as.data.frame(TRUE))
+SEQUENCING_T <- filter(SEQUENCING, `Sample type` == "Tumour")
+
+
+#EPIC TABLE 1
+
+#--------------------------------------
+REFERRAL$`NGIS ID` <- paste(REFERRAL$`Patient ID`)
+NGIS <- select(REFERRAL,`NGIS ID`)
+#--------------------------------------
+TUMOUR_DETAIL$`Tumour ID` <- paste(TUMOUR_DETAIL$`Histopathology or SIHMDS LAB ID`)
+TUMOUR <- select(TUMOUR_DETAIL,`Tumour ID`)
+#--------------------------------------
+TUMOUR_DETAIL$`Sampling Date` <- paste(TUMOUR_DETAIL$`Tumour Diagnosis Date`)
+SAMPLING <- select(TUMOUR_DETAIL,`Sampling Date`)
+#--------------------------------------
+TUMOUR_DETAIL$`Presentation` <- paste(TUMOUR_DETAIL$Presentation," (",TUMOUR_DETAIL$`Primary or Metastatic`, ")", sep = "")
+PRESENTATION <- select(TUMOUR_DETAIL,`Presentation`)
+#--------------------------------------
+REFERRAL$`Diagnosis` <- paste(REFERRAL$`Clinical Indication`)
+DIAGNOSIS <- select(REFERRAL,`Diagnosis`)
+#--------------------------------------
+TUMOUR_DETAIL$`Tumour Site` <- paste(TUMOUR_DETAIL$`Tumour Topography`)
+TUMOUR_SITE <- select(TUMOUR_DETAIL,`Tumour Site`)
+#--------------------------------------
+TUMOUR_SAMPLE$`Tumour Type` <- paste(TUMOUR_SAMPLE$`Storage Medium`," ",TUMOUR_SAMPLE$Source, sep = "")
+TUMOUR_TYPE <- select(TUMOUR_SAMPLE,`Tumour Type`)
+#--------------------------------------
+GERMLINE_SAMPLE$`Germline Sample` <- paste(GERMLINE_SAMPLE$Source," (",GERMLINE_SAMPLE$`Storage Medium`, ")", sep = "")
+GERMLINE <- select(GERMLINE_SAMPLE,`Germline Sample`)
+#--------------------------------------
+#--------------------------------------
+EPIC_Table_1 <- bind_cols(NGIS,TUMOUR, SAMPLING, PRESENTATION, DIAGNOSIS, TUMOUR_SITE, TUMOUR_TYPE, GERMLINE )
+#--------------------------------------
+#--------------------------------------
+
+
+
+#EPIC TABLE 2
+
+TUMOUR_SAMPLE$`Tumour Content (Histo)` <- paste(TUMOUR_SAMPLE$`Tumour Content`)
+HISTO <- select(TUMOUR_SAMPLE,`Tumour Content (Histo)`)
+#--------------------------------------
+TUMOUR_SAMPLE$`Tumour Content (Data)` <- paste(TUMOUR_SAMPLE$`Calculated Tumour Content`)
+DATA <- select(TUMOUR_SAMPLE,`Tumour Content (Data)`)
+#--------------------------------------
+TUMOUR_SAMPLE$`Ploidy` <- paste(TUMOUR_SAMPLE$`Calculated Overall Ploidy`)
+PLOIDY <- select(TUMOUR_SAMPLE,`Ploidy`)
+PLOIDY$Ploidy<-as.numeric(PLOIDY$Ploidy)
+#--------------------------------------
+SEQUENCING_T$`Tumour SNVs` <- paste(SEQUENCING_T$`Total somatic SNVs`)
+SNV <- select(SEQUENCING_T,`Tumour SNVs`)
+#--------------------------------------
+SEQUENCING_T$`Tumour Indels` <- paste(SEQUENCING_T$`Total somatic indels`)
+INDEL <- select(SEQUENCING_T,`Tumour Indels`)
+#--------------------------------------
+SEQUENCING_T$`Tumour SVs` <- paste(SEQUENCING_T$`Total somatic SVs`)
+SV <- select(SEQUENCING_T,`Tumour SVs`)
+#--------------------------------------
+#--------------------------------------
+EPIC_Table_2 <- bind_cols(HISTO,DATA, PLOIDY, SNV, INDEL, SV)
+
+EPIC_Table_2$'Non-syn variants per Mb (CDS)' <- paste("")
+#--------------------------------------
+#--------------------------------------
+
+
+wb <- createWorkbook()
+
+addWorksheet(wb = wb, sheetName = paste("EPIC_Table_1", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 1, x = EPIC_Table_1)
+
+addWorksheet(wb = wb, sheetName = paste("EPIC_Table_2", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 2, x = EPIC_Table_2)
+
+saveWorkbook(wb, paste(OUTPUT_FILEPATH,P_NUMBER,"EPIC_Tables_", Sys.Date(), ".xlsx", sep=""), overwrite = TRUE)
+
+#--------------------------------------
+#--------------------------------------
+
+```
+
+
+```{r TMBPlot, echo=FALSE}
+
+
+#--------------------------------------
+#--------------------------------------
+
+#Label MDT cases
+
+TMB_Label1 <- filter(TMB, `Sub-type` == (paste(Diagnosis)))
+#TMB_Label2 <- filter(TMB, `Sub-type` == "Glioma")
+#TMB_Label3 <- filter(TMB, `Sub-type` == "")
+                     
+#--------------------------------------
+#--------------------------------------
+
+
+ggplot(TMB, aes(x=`Somatic SNVs`, y=`Somatic Indels`, color= `Study`, size = `Somatic SVs`, label = `Sub-type`)) +
+  geom_point(shape = 19, alpha = 1) +
+
+  geom_text(data= TMB_Label1, size=3, alpha = 1, angle = 90, hjust = -0.1, vjust = 1) +
+  #geom_text_repel(data= TMB_Label2, size=3, alpha = 1, angle = 90, hjust = -0.1, vjust = 1) +
+  #geom_text_repel(data= TMB_Label3, size=3, alpha = 1, angle = 90, hjust = -0.1, vjust = 1) +
+  
+ xlim(0,10000) + ylim(0,2500) +
+  #scale_y_log10(breaks = pretty_breaks()) + 
+  #scale_x_log10(breaks = pretty_breaks()) +
+
+  theme(legend.key=element_blank()) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5, size = 10)) +
+  theme(legend.background=element_blank()) +
+  theme(axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=0.5, size = 10)) +
+  theme(panel.background = element_rect(fill = 'white')) +
+  theme(panel.border = element_rect(fill= NA, color = "black")) +
+  theme(panel.grid.major = element_line(color = "light grey", linetype = 3, size = 0.4)) +
+  theme(axis.text=element_text(size=12)) +
+  theme(axis.title=element_text(size=12)) +
+  theme(strip.background =element_rect(fill="white"))+
+  theme(strip.text = element_text(colour = 'dark blue')) +
+  
+  ggtitle("") +
+  xlab("Subs") + theme(legend.title = element_blank()) +
+  ylab("Indels")
+
+
+ggsave(filename=paste(OUTPUT_FILEPATH,P_NUMBER, Sys.Date(),"_TMB_log.pdf", sep=""),width=12, height=7, dpi=300)
+
+```
+
+
+```{r Import HTML SNV Data , include=FALSE}
+
+
+#IMPORT SNV DATA
+#SNV_DOMAIN_1 <- readHTMLTable(INPUT_FILEPATH, which = 6, as.data.frame(TRUE))
+#SNV_DOMAIN_2 <- readHTMLTable(INPUT_FILEPATH, which = 6, as.data.frame(TRUE))
+SNV_DOMAIN_3 <- readHTMLTable(INPUT_FILEPATH, which = 6, as.data.frame(TRUE))
+
+#IMPORT SV AND CNV DATA
+SV_DOMAIN_1_SEG <- readHTMLTable(INPUT_FILEPATH, which = 7, as.data.frame(TRUE))
+SV_DOMAIN_1_GENE <- readHTMLTable(INPUT_FILEPATH, which = 8, as.data.frame(TRUE))
+SV_DOMAIN_2_SEG <- readHTMLTable(INPUT_FILEPATH, which = 9, as.data.frame(TRUE))
+SV_DOMAIN_2_GENE <- readHTMLTable(INPUT_FILEPATH, which = 10, as.data.frame(TRUE))
+SV_DOMAIN_3_SEG <- readHTMLTable(INPUT_FILEPATH, which = 11, as.data.frame(TRUE))
+SV_DOMAIN_3_GENE <- readHTMLTable(INPUT_FILEPATH, which = 12, as.data.frame(TRUE))
+
+#IMPORT LARGE ABBS AND KATEGIS
+SV_LARGE_ABB <- readHTMLTable(INPUT_FILEPATH, which = 13, as.data.frame(TRUE))
+SV_SMALL_ABB <- readHTMLTable(INPUT_FILEPATH, which = 14, as.data.frame(TRUE))
+KATEAGIS <- readHTMLTable(INPUT_FILEPATH, which = 15, as.data.frame(TRUE))
+
+#IMPORT GERMLINE
+#GERMLINE_TIER_1 <- readHTMLTable(INPUT_FILEPATH, which = 18, as.data.frame(TRUE))
+GERMLINE_TIER_3 <- readHTMLTable(INPUT_FILEPATH, which = 16, as.data.frame(TRUE))
+
+
+```
+
+
+```{r SNV_DOMAIN_1_2_3_DATA_, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+#SNV_DOMAIN_1_2_3_DAT
+
+
+
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+
+
+
+
+
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+
+SNV_DOMAIN_3_DATA <- select(SNV_DOMAIN_3, Gene,
+                   `GRCh38 coordinatesref/alt allele`,
+                   `Transcript`,
+                   `CDS change and protein change`,
+                   `Predicted consequences`,
+                   `VAF`,
+                   `Alt allele/total read depth`)
+                  
+names(SNV_DOMAIN_3_DATA)[names(SNV_DOMAIN_3_DATA) == "GRCh38 coordinatesref/alt allele"] <- "Coordinates"
+names(SNV_DOMAIN_3_DATA)[names(SNV_DOMAIN_3_DATA) == "CDS change and protein change"] <- "Mutation"
+names(SNV_DOMAIN_3_DATA)[names(SNV_DOMAIN_3_DATA) == "Predicted consequences"] <- "Consequence"
+names(SNV_DOMAIN_3_DATA)[names(SNV_DOMAIN_3_DATA) == "Alt allele/total read depth"] <- "Depth (Alt/Total)"
+                   
+SNV_DOMAIN_3_DATA$"Domain" <- paste("Somatic_Domain_3")
+
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+
+SNV_DOMAIN_1_2_3_DATA  <- bind_rows(SNV_DOMAIN_3_DATA)
+
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+
+#Separate VAF and text (LOH)
+SNV_DOMAIN_1_2_3_DATA_A <- SNV_DOMAIN_1_2_3_DATA %>%
+  separate(VAF, c("VAF", "LOH"), "[()]")
+SNV_DOMAIN_1_2_3_DATA_A$VAF<-as.numeric(SNV_DOMAIN_1_2_3_DATA_A$VAF)
+
+#----------------------------------------------------------------------------
+
+#Separate Consequence and error code
+SNV_DOMAIN_1_2_3_DATA_B <- SNV_DOMAIN_1_2_3_DATA_A %>%
+  separate(Consequence, c("Consequence", "Error Code"), "[()]")
+
+#----------------------------------------------------------------------------
+
+#Duplicate Mutation
+SNV_DOMAIN_1_2_3_DATA_B$Mutation2 <- SNV_DOMAIN_1_2_3_DATA_B$Mutation
+
+
+#Separate Consequence and error code
+SNV_DOMAIN_1_2_3_DATA_C <- SNV_DOMAIN_1_2_3_DATA_B %>%
+  separate(Mutation2, c("CDOT", "PDOT"), "p.")
+
+
+#Make CDOT MTBP_Compliant
+SNV_DOMAIN_1_2_3_DATA_C$MTBP_C_DOT <- paste(SNV_DOMAIN_1_2_3_DATA_C$Gene,":",SNV_DOMAIN_1_2_3_DATA_C$CDOT, sep = "")
+
+#Make PDOT MTBP_Compliant
+SNV_DOMAIN_1_2_3_DATA_C$MTBP_P_DOT <- paste(SNV_DOMAIN_1_2_3_DATA_C$Gene,":p.",SNV_DOMAIN_1_2_3_DATA_C$PDOT, sep = "")
+
+#----------------------------------------------------------------------------
+
+#Duplicate Coordinates
+SNV_DOMAIN_1_2_3_DATA_C$Coordinates2 <- SNV_DOMAIN_1_2_3_DATA_C$Coordinates
+SNV_DOMAIN_1_2_3_DATA_C <- SNV_DOMAIN_1_2_3_DATA_C %>%
+  separate(Coordinates2, c("Chr", "Coord2"), ":")
+
+#Extract Genomic Coordinate
+SNV_DOMAIN_1_2_3_DATA_C$COORD_2 <- as.numeric(str_extract(SNV_DOMAIN_1_2_3_DATA_C$Coord2, "[0-9]+"))
+
+#Make Chrom:Coordinate
+SNV_DOMAIN_1_2_3_DATA_C$CHROM_COORDINATE <- paste(SNV_DOMAIN_1_2_3_DATA_C$Chr,":",SNV_DOMAIN_1_2_3_DATA_C$COORD_2, sep = "")
+
+#----------------------------------------------------------------------------
+
+#Make Hotspot String
+SNV_DOMAIN_1_2_3_DATA_C$HOTSPOT <- substr(SNV_DOMAIN_1_2_3_DATA_C$PDOT,1,nchar(SNV_DOMAIN_1_2_3_DATA_C$PDOT)-3)
+
+SNV_DOMAIN_1_2_3_DATA_C$GENE_HOTSPOT <- paste(SNV_DOMAIN_1_2_3_DATA_C$Gene,":p.",SNV_DOMAIN_1_2_3_DATA_C$HOTSPOT, sep = "")
+
+#----------------------------------------------------------------------------
+
+SNV_DOMAIN_1_2_3_DATA_CancerHotspots <- left_join(SNV_DOMAIN_1_2_3_DATA_C, CancerHotspots, by = "GENE_HOTSPOT")
+
+SNV_DOMAIN_1_2_3_DATA_ReferenceGenes <- left_join(SNV_DOMAIN_1_2_3_DATA_C, ReferenceGenes, by = "Gene")
+
+
+#----------------------------------------------------------------------------
+
+SNV_DOMAIN_1_2_3_DATA_C$'Clinical Significance' <- paste("")
+SNV_DOMAIN_1_2_3_DATA_C$'Validation Status' <- paste("")
+
+SNV_DOMAIN_1_2_3_DATA_C <- SNV_DOMAIN_1_2_3_DATA_C %>%
+  dplyr::rename("Classification" = "Clinical Significance", "GRCh38 Coordinates" = "Coordinates") %>%
+  select("Gene", "GRCh38 Coordinates", "Transcript", "Mutation", "VAF", "Classification", "Validation Status")
+
+
+#GERMLINE_TIER_1$'Clinical Significance' <- paste("")
+#GERMLINE_TIER_1$'Validation Status' <- paste("")
+
+GERMLINE_TIER_3$'Classification' <- paste("")
+GERMLINE_TIER_3$'Validation Status' <- paste("")
+
+names(GERMLINE_TIER_3)[names(GERMLINE_TIER_3) == "GRCh38 coordinatesref/alt allele"] <- "GRCh38 Coordinates"
+names(GERMLINE_TIER_3)[names(GERMLINE_TIER_3) == "CDS change and protein change"] <- "Mutation"
+
+GERMLINE_TIER_3 <- select(GERMLINE_TIER_3, "Gene", "GRCh38 Coordinates", "Transcript", "Mutation", "Genotype", "Classification", "Validation Status")
+
+#GERMLINE_TIER_1 <- select(GERMLINE_TIER_1, "Gene", "GRCh38 coordinatesref/alt allele", "Transcript", "CDS change and protein change", "Genotype", "Clinical Significance", "Validation Status")
+
+
+
+wb <- createWorkbook()
+
+addWorksheet(wb = wb, sheetName = paste("SNV_DOMAIN_1_2_3", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 1, x = SNV_DOMAIN_1_2_3_DATA_C)
+
+addWorksheet(wb = wb, sheetName = paste("SNV_DOMAIN_HotSpots", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 2, x = SNV_DOMAIN_1_2_3_DATA_CancerHotspots)
+
+addWorksheet(wb = wb, sheetName = paste("SNV_DOMAIN_RefGenes", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 3, x = SNV_DOMAIN_1_2_3_DATA_ReferenceGenes)
+
+#addWorksheet(wb = wb, sheetName = paste("GERMLINE_TIER_1", gridLines = TRUE))
+#writeDataTable(wb = wb, sheet = 4, x = GERMLINE_TIER_1)
+
+addWorksheet(wb = wb, sheetName = paste("GERMLINE_TIER_3", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 4, x = GERMLINE_TIER_3)
+
+
+
+
+saveWorkbook(wb, paste(OUTPUT_FILEPATH,P_NUMBER,"Somatic_Germline_SNV_", Sys.Date(), ".xlsx", sep=""), overwrite = TRUE)
+
+```
+
+
+```{r SV_DOMAIN_1_2_GENE_DATA, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+#SV_DOMAIN_1_2_GENE_DATA
+
+SV_DOMAIN_1_GENE_DATA <- select(SV_DOMAIN_1_GENE, Gene,
+                   Transcript,
+                   `Impacted transcript region`,
+                   `Variant GRCh38 coordinates`,
+                   `Variant type`,
+                   `Gene mode of action`,
+                   `Variant Chromosomal bands`,
+                   `Population germline allele frequency (GESG | GECG)`,
+                   `Confidence/support`)
+
+SV_DOMAIN_1_GENE_DATA$"Domain" <- paste("Somatic_SV_Domain_1")
+
+#-------------------------
+
+SV_DOMAIN_2_GENE_DATA <- select(SV_DOMAIN_2_GENE, Gene,
+                   Transcript,
+                   `Impacted transcript region`,
+                   `Variant GRCh38 coordinates`,
+                   `Variant type`,
+                   `Gene mode of action`,
+                   `Variant Chromosomal bands`,
+                   `Population germline allele frequency (GESG | GECG)`,
+                   `Confidence/support`)
+
+SV_DOMAIN_2_GENE_DATA$"Domain" <- paste("Somatic_SV_Domain_2")
+
+
+#-------------------------
+
+SV_DOMAIN_3_GENE_DATA <- select(SV_DOMAIN_3_GENE, Gene,
+                   Transcript,
+                   `Impacted transcript region`,
+                   `Variant GRCh38 coordinates`,
+                   `Variant type`,
+                   `Variant Chromosomal bands`,
+                   `Population germline allele frequency (GESG | GECG)`,
+                   `Confidence/support`)
+
+SV_DOMAIN_3_GENE_DATA$"Domain" <- paste("Somatic_SV_Domain_3")
+
+#-------------------------
+
+SV_DOMAIN_1_2_3_GENE_DATA <- bind_rows(SV_DOMAIN_1_GENE_DATA, SV_DOMAIN_2_GENE_DATA, SV_DOMAIN_3_GENE_DATA )
+
+#-------------------------
+
+#Determine size of segment
+
+SV_DOMAIN_1_2_3_GENE_DATA <- SV_DOMAIN_1_2_3_GENE_DATA %>%
+  separate(`Variant GRCh38 coordinates`, c("Chrom", "Coordinates"), "[:]")
+
+SV_DOMAIN_1_2_3_GENE_DATA <- SV_DOMAIN_1_2_3_GENE_DATA %>%
+  separate(Coordinates, c("Start", "Stop"), "[-]")
+
+SV_DOMAIN_1_2_3_GENE_DATA$Start<-as.numeric(SV_DOMAIN_1_2_3_GENE_DATA$Start)
+SV_DOMAIN_1_2_3_GENE_DATA$Stop<-as.numeric(SV_DOMAIN_1_2_3_GENE_DATA$Stop)
+
+
+SV_DOMAIN_1_2_3_GENE_DATA$Size <- (SV_DOMAIN_1_2_3_GENE_DATA$Stop - SV_DOMAIN_1_2_3_GENE_DATA$Start)
+SV_DOMAIN_1_2_3_GENE_DATA$`Size (Mb)` <- (SV_DOMAIN_1_2_3_GENE_DATA$Size / 1000000)
+
+#-------------------------
+
+#Separate Sample_ID using colon to release chromosome
+SV_DOMAIN_1_2_3_GENE_DATA <- SV_DOMAIN_1_2_3_GENE_DATA %>%
+  separate(`Variant type`, c("Variant_Type", "CN"), "[()]") %>%
+  mutate(
+    Variant_Type = case_when(
+      str_detect(Variant_Type, "DUP") ~ "Tandem Duplication",
+      str_detect(Variant_Type, "BND") ~ "Translocation",
+      str_detect(Variant_Type,"DEL") ~ "Deletion",
+      str_detect(Variant_Type,"INV") ~ "Inversion",
+      str_detect(Variant_Type,"INS") ~ "Insertion",
+      TRUE ~ Variant_Type
+    )
+)
+
+SV_DOMAIN_1_2_3_GENE_DATA$CN<-as.numeric(SV_DOMAIN_1_2_3_GENE_DATA$CN)
+
+SV_DOMAIN_1_2_3_GENE_DATA_GAIN <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "GAIN"))
+SV_DOMAIN_1_2_3_GENE_DATA_LOSS <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "LOSS"))
+SV_DOMAIN_1_2_3_GENE_DATA_LOH <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "LOH"))
+SV_DOMAIN_1_2_3_GENE_DATA_BND <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "BND"))
+SV_DOMAIN_1_2_3_GENE_DATA_DEL <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "DEL"))
+SV_DOMAIN_1_2_3_GENE_DATA_DUP <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "DUP"))
+SV_DOMAIN_1_2_3_GENE_DATA_INV <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "INV"))
+
+SV_DOMAIN_1_2_3_GENE_DATA_OTHER <- SV_DOMAIN_1_2_3_GENE_DATA %>% filter(!str_detect(Variant_Type, "LOSS|GAIN|LOH|Tandem Duplication|Translocation|Deletion|Inversion|Insertion"))
+
+SV_DOMAIN_1_2_3_GENE_DATA_BND_DEL_DUP_INV <- (bind_rows(SV_DOMAIN_1_2_3_GENE_DATA_BND,
+                                                        SV_DOMAIN_1_2_3_GENE_DATA_DEL,
+                                                        SV_DOMAIN_1_2_3_GENE_DATA_DUP,
+                                                        SV_DOMAIN_1_2_3_GENE_DATA_INV))
+
+
+wb <- createWorkbook()
+
+addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 1, x = SV_DOMAIN_1_2_3_GENE_DATA %>% 
+                 mutate(Classification = "", "Validation Status" = "") %>%
+                 # remove CNVs from SV_ALL tab
+                 filter(!str_detect(Variant_Type, "GAIN|LOSS|LOH")))
+
+addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_GAIN", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 2, x = SV_DOMAIN_1_2_3_GENE_DATA_GAIN)
+
+addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_LOSS", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 3, x = SV_DOMAIN_1_2_3_GENE_DATA_LOSS)
+
+addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_LOH", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 4, x = SV_DOMAIN_1_2_3_GENE_DATA_LOH)
+
+addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_BND", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 5, x = SV_DOMAIN_1_2_3_GENE_DATA_BND)
+
+addWorksheet(wb = wb, sheetName = paste("SV_DATA_DEL", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 6, x = SV_DOMAIN_1_2_3_GENE_DATA_DEL)
+
+addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_DATA_DUP", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 7, x = SV_DOMAIN_1_2_3_GENE_DATA_DUP)
+
+addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_INV", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 8, x = SV_DOMAIN_1_2_3_GENE_DATA_INV)
+
+addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_BND_DEL_DUP_INV", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 9, x = SV_DOMAIN_1_2_3_GENE_DATA_BND_DEL_DUP_INV)
+
+addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_GENE_DATA_OTHER", gridLines = TRUE))
+writeDataTable(wb = wb, sheet = 10, x = SV_DOMAIN_1_2_3_GENE_DATA_OTHER)
+
+saveWorkbook(wb, paste(OUTPUT_FILEPATH,P_NUMBER,"SV_DATA_", Sys.Date(), ".xlsx", sep=""), overwrite = TRUE)
+
+#-------------------------
+
+```
+
+
+```{r SV_DOMAIN_1_2_GENE_DATA_GAIN_PLOIDYX2, echo=FALSE, warning=FALSE}
+#SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDYX2
+
+SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDY <- bind_cols(SV_DOMAIN_1_2_3_GENE_DATA_GAIN, PLOIDY)
+
+SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDY$PLOIDYX2 <- (SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDY$Ploidy * 2)
+
+SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDYX2 <- filter(SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDY, CN > PLOIDYX2)
+
+ggplot(SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDYX2, aes(x=CN, y=`Size (Mb)`, color= Domain, label = Gene)) +
+  geom_point(shape = 20, alpha = 10) +
+    geom_text(aes(label = Gene, hjust = 0.5, vjust = 0,  angle = 45, alpha = 0.4, ), position=position_jitter(width=1,height=0.2)) +
+   scale_y_log10(breaks = pretty_breaks()) +   geom_hline(yintercept=10, linetype="dashed", color = "dark red", size=0.5, alpha = 0.5) +
+  facet_wrap(~Domain, nrow = 1) +
+  
+  theme(legend.key=element_blank()) +
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=0.5, size = 10)) +
+  theme(legend.background=element_blank()) +
+  theme(axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=0.5, size = 10)) +
+  theme(panel.background = element_rect(fill = 'white')) +
+  theme(panel.border = element_rect(fill= NA, color = "black")) +
+  theme(panel.grid.major = element_line(color = "light grey", linetype = 3, size = 0.4)) +
+  theme(axis.text=element_text(size=12)) +
+  theme(axis.title=element_text(size=12)) +
+  theme(strip.background =element_rect(fill="white")) +
+  theme(strip.text = element_text(colour = 'dark blue')) +
+  
+  ggtitle("CNV Gain") + theme(legend.title = element_blank())
+
+ggsave(filename=paste0(OUTPUT_FILEPATH,P_NUMBER,"_SV_DOMAIN_1_2_3_GENE_DATA_GAIN_PLOIDYX2.pdf"),width=8, height=7, dpi=300)
+
+```
+
+
+```{r LOSS, echo=FALSE}
+
+ggplot(SV_DOMAIN_1_2_3_GENE_DATA_LOSS, aes(x=CN, y=`Size (Mb)`, color= Domain, label = Gene)) +
+  geom_point(shape = 19, alpha = 1) +
+    geom_text(aes(label = Gene, hjust = 0, vjust = 0,  angle = 45, alpha = 0.4, ), position=position_jitter(width=0.2,height=0.4)) +
+   scale_y_log10(breaks = pretty_breaks()) + xlim(-1, 3) +
+  facet_wrap(~Domain, ncol = 3) +
+  geom_hline(yintercept=10, linetype="dashed", color = "dark red", size=0.5, alpha = 0.5) +
+  
+  theme(legend.key=element_blank()) +
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=0.5, size = 10)) +
+  theme(legend.background=element_blank()) +
+  theme(axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=0.5, size = 10)) +
+  theme(panel.background = element_rect(fill = 'white')) +
+  theme(panel.border = element_rect(fill= NA, color = "black")) +
+  theme(panel.grid.major = element_line(color = "light grey", linetype = 3, size = 0.4)) +
+  theme(axis.text=element_text(size=12)) +
+  theme(axis.title=element_text(size=12)) +
+  theme(strip.background =element_rect(fill="white"))+
+  theme(strip.text = element_text(colour = 'dark blue')) +
+  
+  ggtitle("CNV Loss") + theme(legend.title = element_blank())
+
+ggsave(filename=paste0(OUTPUT_FILEPATH,P_NUMBER,"_SV_DOMAIN_1_2_3_GENE_DATA_LOSS.pdf"),width=8, height=7, dpi=300)
+
+
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+
+kable(GERMLINE_TIER_3) %>%
+  kable_styling(bootstrap_options = "striped", "hover", "condensed", position = "float_left", full_width = F, font_size = 14)
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+
+
+
+wb <- createWorkbook()
+
+addWorksheet(wb = wb, sheetName = paste("SV_LARGE_ABB",nrow(SV_LARGE_ABB)), gridLines = TRUE)
+writeData(wb = wb, sheet = 1, x = SV_LARGE_ABB)
+
+addWorksheet(wb = wb, sheetName = paste("SV_SMALL_ABB",nrow(SV_SMALL_ABB)), gridLines = TRUE)
+writeData(wb = wb, sheet = 2, x = SV_SMALL_ABB)
+
+addWorksheet(wb = wb, sheetName = paste("KATEAGIS",nrow(KATEAGIS)), gridLines = TRUE)
+writeData(wb = wb, sheet = 3, x = KATEAGIS)
+
+saveWorkbook(wb, paste(OUTPUT_FILEPATH,P_NUMBER,"_SV_KATEAGIS_", Sys.Date(), ".xlsx", sep=""), overwrite = TRUE)
+
+
+#--------------------------------
+
+
+```
+
+
+
+
