@@ -495,29 +495,42 @@ SV_DOMAIN_1_2_3_GENE_DATA$`Size (Mb)` <- (SV_DOMAIN_1_2_3_GENE_DATA$Size / 10000
 
 #-------------------------
 
+variant_code_to_fullnames <- function(variant_type){
+  case_when(
+      str_detect(variant_type, "DUP") ~ str_replace(variant_type, "DUP", "Tandem Duplication "),
+      str_detect(variant_type, "BND") ~ str_replace(variant_type, "BND", "Translocation "),
+      str_detect(variant_type, "DEL") ~ str_replace(variant_type, "DEL", "Deletion "),
+      str_detect(variant_type, "INV") ~ str_replace(variant_type, "INV", "Inversion "),
+      str_detect(variant_type, "INS") ~ str_replace(variant_type, "INS", "Insertion "),
+      TRUE ~ variant_type
+  )
+}
+
+fullnames_to_variant_codes <- function(variant_type){
+  case_when(
+      str_detect(variant_type, "Tandem Duplication") ~ str_replace(variant_type, "Tandem Duplication", "DUP"), 
+      str_detect(variant_type, "Translocation") ~ str_replace(variant_type, "Translocation", "BND"), 
+      str_detect(variant_type, "Deletion") ~ str_replace(variant_type, "Deletion", "DEL"),
+      str_detect(variant_type, "Inversion") ~ str_replace(variant_type, "Inversion", "INV"),
+      str_detect(variant_type, "Insertion") ~ str_replace(variant_type, "Insertion", "INS"),
+      TRUE ~ variant_type
+  )
+}
+
 #Separate Sample_ID using colon to release chromosome
 SV_DOMAIN_1_2_3_GENE_DATA <- SV_DOMAIN_1_2_3_GENE_DATA %>%
   separate(`Variant type`, c("Variant_Type", "CN"), "[()]") %>%
-  mutate(
-    Variant_Type = case_when(
-      str_detect(Variant_Type, "DUP") ~ "Tandem Duplication",
-      str_detect(Variant_Type, "BND") ~ "Translocation",
-      str_detect(Variant_Type,"DEL") ~ "Deletion",
-      str_detect(Variant_Type,"INV") ~ "Inversion",
-      str_detect(Variant_Type,"INS") ~ "Insertion",
-      TRUE ~ Variant_Type
-    )
-)
+  mutate(Variant_Type = variant_code_to_fullnames(Variant_Type))
 
 SV_DOMAIN_1_2_3_GENE_DATA$CN<-as.numeric(SV_DOMAIN_1_2_3_GENE_DATA$CN)
 
 SV_DOMAIN_1_2_3_GENE_DATA_GAIN <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "GAIN"))
 SV_DOMAIN_1_2_3_GENE_DATA_LOSS <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "LOSS"))
 SV_DOMAIN_1_2_3_GENE_DATA_LOH <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "LOH"))
-SV_DOMAIN_1_2_3_GENE_DATA_BND <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "BND"))
-SV_DOMAIN_1_2_3_GENE_DATA_DEL <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "DEL"))
-SV_DOMAIN_1_2_3_GENE_DATA_DUP <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "DUP"))
-SV_DOMAIN_1_2_3_GENE_DATA_INV <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "INV"))
+SV_DOMAIN_1_2_3_GENE_DATA_BND <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "Translocation"))
+SV_DOMAIN_1_2_3_GENE_DATA_DEL <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "Deletion"))
+SV_DOMAIN_1_2_3_GENE_DATA_DUP <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "Tandem Duplication"))
+SV_DOMAIN_1_2_3_GENE_DATA_INV <- filter(SV_DOMAIN_1_2_3_GENE_DATA, str_detect(Variant_Type, "Inversion"))
 
 SV_DOMAIN_1_2_3_GENE_DATA_OTHER <- SV_DOMAIN_1_2_3_GENE_DATA %>% filter(!str_detect(Variant_Type, "LOSS|GAIN|LOH|Tandem Duplication|Translocation|Deletion|Inversion|Insertion"))
 
@@ -526,44 +539,57 @@ SV_DOMAIN_1_2_3_GENE_DATA_BND_DEL_DUP_INV <- (bind_rows(SV_DOMAIN_1_2_3_GENE_DAT
                                                         SV_DOMAIN_1_2_3_GENE_DATA_DUP,
                                                         SV_DOMAIN_1_2_3_GENE_DATA_INV))
 
-#SV_DOMAIN_REPORTING <- SV_DOMAIN_1_2_3_GENE_DATA %>%
-#  select()
-
+# Add reporting Tab
+SV_DOMAIN_REPORTING <- SV_DOMAIN_1_2_3_GENE_DATA %>%
+  select(Gene, Chrom, Transcript, Start, Stop, Variant_Type, `Variant Chromosomal bands`) %>%
+  mutate(Classification = "", 
+         "Validation Status" = "",
+         "GRCh38 Coordinates" = paste0(Chrom, ":", Start, ",", Chrom, ":", Stop),
+         ) %>%
+  select(-c(Chrom, Start, Stop)) %>%
+  dplyr::rename("Cytological Bands" = "Variant Chromosomal bands",
+                "Variant Type" = Variant_Type) %>%
+  select(Gene, `GRCh38 Coordinates`, Transcript, `Cytological Bands`, `Variant Type`, Classification, `Validation Status`)
 
 wb <- createWorkbook()
 
+addWorksheet(wb = wb, sheetName = "REPORTING", gridLines = TRUE)
+writeDataTable(wb = wb, sheet = 1, x = SV_DOMAIN_REPORTING)
+
 addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 1, x = SV_DOMAIN_1_2_3_GENE_DATA %>% 
+writeDataTable(wb = wb, sheet = 2, x = SV_DOMAIN_1_2_3_GENE_DATA %>% 
                  mutate(Classification = "", "Validation Status" = "") %>%
                  # remove CNVs from SV_ALL tab
-                 filter(!str_detect(Variant_Type, "GAIN|LOSS|LOH")))
+                 filter(!str_detect(Variant_Type, "GAIN|LOSS|LOH")) %>%
+                 # add back full variant codes for this tab only
+                 mutate(Variant_Type = fullnames_to_variant_codes(Variant_Type)))
 
 addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_GAIN", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 2, x = SV_DOMAIN_1_2_3_GENE_DATA_GAIN)
+writeDataTable(wb = wb, sheet = 3, x = SV_DOMAIN_1_2_3_GENE_DATA_GAIN)
 
 addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_LOSS", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 3, x = SV_DOMAIN_1_2_3_GENE_DATA_LOSS)
+writeDataTable(wb = wb, sheet = 4, x = SV_DOMAIN_1_2_3_GENE_DATA_LOSS)
 
 addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_LOH", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 4, x = SV_DOMAIN_1_2_3_GENE_DATA_LOH)
+writeDataTable(wb = wb, sheet = 5, x = SV_DOMAIN_1_2_3_GENE_DATA_LOH)
 
 addWorksheet(wb = wb, sheetName = paste("SV_GENE_DATA_BND", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 5, x = SV_DOMAIN_1_2_3_GENE_DATA_BND)
+writeDataTable(wb = wb, sheet = 6, x = SV_DOMAIN_1_2_3_GENE_DATA_BND)
 
 addWorksheet(wb = wb, sheetName = paste("SV_DATA_DEL", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 6, x = SV_DOMAIN_1_2_3_GENE_DATA_DEL)
+writeDataTable(wb = wb, sheet = 7, x = SV_DOMAIN_1_2_3_GENE_DATA_DEL)
 
 addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_DATA_DUP", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 7, x = SV_DOMAIN_1_2_3_GENE_DATA_DUP)
+writeDataTable(wb = wb, sheet = 8, x = SV_DOMAIN_1_2_3_GENE_DATA_DUP)
 
 addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_INV", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 8, x = SV_DOMAIN_1_2_3_GENE_DATA_INV)
+writeDataTable(wb = wb, sheet = 9, x = SV_DOMAIN_1_2_3_GENE_DATA_INV)
 
 addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_BND_DEL_DUP_INV", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 9, x = SV_DOMAIN_1_2_3_GENE_DATA_BND_DEL_DUP_INV)
+writeDataTable(wb = wb, sheet = 10, x = SV_DOMAIN_1_2_3_GENE_DATA_BND_DEL_DUP_INV)
 
 addWorksheet(wb = wb, sheetName = paste("SV_DOMAIN_GENE_DATA_OTHER", gridLines = TRUE))
-writeDataTable(wb = wb, sheet = 10, x = SV_DOMAIN_1_2_3_GENE_DATA_OTHER)
+writeDataTable(wb = wb, sheet = 11, x = SV_DOMAIN_1_2_3_GENE_DATA_OTHER)
 
 saveWorkbook(wb, paste(OUTPUT_FILEPATH,P_NUMBER,"SV_DATA_", Sys.Date(), ".xlsx", sep=""), overwrite = TRUE)
 
